@@ -21,6 +21,7 @@ export default function AdminTreks() {
   const [treks, setTreks] = useState([])
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyTrek)
+  const [uploading, setUploading] = useState(false)
   const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
 
   const headers = {
@@ -37,7 +38,17 @@ export default function AdminTreks() {
   useEffect(() => { load() }, [])
 
   const startCreate = () => { setEditing('new'); setForm(emptyTrek) }
-  const startEdit = (t) => { setEditing(t.id); setForm({...t}) }
+  const startEdit = (t) => { setEditing(t.id); setForm({
+    ...t,
+    duration_days: t.duration_days ?? 0,
+    max_altitude_m: t.max_altitude_m ?? 0,
+    price_usd: t.price_usd ?? 0,
+    highlights: t.highlights || [],
+    itinerary: t.itinerary || [],
+    inclusions: t.inclusions || [],
+    exclusions: t.exclusions || [],
+    images: t.images || []
+  }) }
   const cancel = () => { setEditing(null); setForm(emptyTrek) }
 
   const save = async () => {
@@ -72,8 +83,39 @@ export default function AdminTreks() {
 
   const parseList = (value) => value.split('\n').map(s=>s.trim()).filter(Boolean)
 
+  const uploadImages = async (files) => {
+    if (!files?.length) return
+    setUploading(true)
+    try {
+      const newPaths = []
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch(`${API_BASE}/api/upload?folder=treks`, {
+          method: 'POST',
+          headers: {
+            ...(token ? { 'X-Admin-Key': token } : {})
+          },
+          body: fd
+        })
+        if (!res.ok) throw new Error('Upload failed')
+        const data = await res.json()
+        if (data?.path) newPaths.push(data.path)
+      }
+      setForm(prev => ({ ...prev, images: [...(prev.images||[]), ...newPaths] }))
+    } catch (e) {
+      alert('Failed to upload one or more images')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeImage = (path) => {
+    setForm(prev => ({ ...prev, images: (prev.images || []).filter(p => p !== path) }))
+  }
+
   return (
-    <div className="grid lg:grid-cols-[1fr_420px] gap-6">
+    <div className="grid lg:grid-cols-[1fr_480px] gap-6">
       <div className="bg-white border rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Treks</h2>
@@ -82,9 +124,16 @@ export default function AdminTreks() {
         <div className="divide-y">
           {treks.map(t => (
             <div key={t.id} className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium">{t.title}</div>
-                <div className="text-sm text-gray-600">{t.region} • {t.duration_days} days • {t.difficulty}</div>
+              <div className="flex items-center gap-3">
+                {t.images?.[0] ? (
+                  <img src={t.images[0].startsWith('http') ? t.images[0] : `${API_BASE}${t.images[0]}`} alt="cover" className="w-12 h-12 object-cover rounded" />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-gray-100 border" />
+                )}
+                <div>
+                  <div className="font-medium">{t.title}</div>
+                  <div className="text-sm text-gray-600">{t.region} • {t.duration_days} days • {t.difficulty}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={()=>startEdit(t)} className="px-3 py-1.5 rounded border">Edit</button>
@@ -99,7 +148,7 @@ export default function AdminTreks() {
       <div className="bg-white border rounded-lg p-4">
         <h2 className="font-semibold mb-2">{editing ? (editing==='new' ? 'Create Trek' : 'Edit Trek') : 'Select a trek'}</h2>
         {editing && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="Title" className="w-full border rounded px-3 py-2" />
             <div className="grid grid-cols-2 gap-2">
               <input value={form.region} onChange={e=>setForm({...form, region:e.target.value})} placeholder="Region" className="border rounded px-3 py-2" />
@@ -124,7 +173,28 @@ export default function AdminTreks() {
               <textarea value={(form.inclusions||[]).join('\n')} onChange={e=>setForm({...form, inclusions: parseList(e.target.value)})} placeholder="Inclusions (one per line)" className="border rounded px-3 py-2" rows={3} />
               <textarea value={(form.exclusions||[]).join('\n')} onChange={e=>setForm({...form, exclusions: parseList(e.target.value)})} placeholder="Exclusions (one per line)" className="border rounded px-3 py-2" rows={3} />
             </div>
-            <textarea value={(form.images||[]).join('\n')} onChange={e=>setForm({...form, images: parseList(e.target.value)})} placeholder="Image URLs (one per line)" className="w-full border rounded px-3 py-2" rows={3} />
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-medium">Images</label>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="file" accept="image/*" multiple onChange={(e)=>{ const files = Array.from(e.target.files||[]); e.target.value=''; uploadImages(files) }} className="hidden" />
+                  <span className="px-3 py-1.5 rounded border bg-gray-50">{uploading ? 'Uploading...' : 'Upload'}</span>
+                </label>
+              </div>
+              {form.images?.length ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {form.images.map((img) => (
+                    <div key={img} className="relative group">
+                      <img src={img.startsWith('http') ? img : `${API_BASE}${img}`} className="w-full h-20 object-cover rounded border" />
+                      <button type="button" onClick={()=>removeImage(img)} className="absolute top-1 right-1 text-xs bg-white/90 border rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100">Remove</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600">No images yet.</div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button onClick={save} className="bg-green-600 hover:bg-green-700 text-white rounded px-3 py-1.5">Save</button>

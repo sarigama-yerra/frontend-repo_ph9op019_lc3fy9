@@ -14,6 +14,7 @@ export default function AdminBlog() {
   const [posts, setPosts] = useState([])
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyPost)
+  const [uploading, setUploading] = useState(false)
   const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
 
   const headers = {
@@ -30,7 +31,7 @@ export default function AdminBlog() {
   useEffect(() => { load() }, [])
 
   const startCreate = () => { setEditing('new'); setForm(emptyPost) }
-  const startEdit = (p) => { setEditing(p.id); setForm({...p, tags: p.tags || []}) }
+  const startEdit = (p) => { setEditing(p.id); setForm({ ...p, tags: p.tags || [] }) }
   const cancel = () => { setEditing(null); setForm(emptyPost) }
 
   const save = async () => {
@@ -56,8 +57,31 @@ export default function AdminBlog() {
     else alert('Failed to delete')
   }
 
+  const uploadCover = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${API_BASE}/api/upload?folder=blog`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'X-Admin-Key': token } : {})
+        },
+        body: fd
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json()
+      if (data?.path) setForm(prev => ({ ...prev, cover_image: data.path }))
+    } catch (e) {
+      alert('Failed to upload image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
-    <div className="grid lg:grid-cols-[1fr_420px] gap-6">
+    <div className="grid lg:grid-cols-[1fr_480px] gap-6">
       <div className="bg-white border rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Blog Posts</h2>
@@ -66,9 +90,16 @@ export default function AdminBlog() {
         <div className="divide-y">
           {posts.map(p => (
             <div key={p.id} className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium">{p.title}</div>
-                <div className="text-sm text-gray-600">{(p.tags||[]).join(', ')}</div>
+              <div className="flex items-center gap-3">
+                {p.cover_image ? (
+                  <img src={p.cover_image.startsWith('http') ? p.cover_image : `${API_BASE}${p.cover_image}`} alt="cover" className="w-12 h-12 object-cover rounded" />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-gray-100 border" />
+                )}
+                <div>
+                  <div className="font-medium">{p.title}</div>
+                  <div className="text-sm text-gray-600">{(p.tags||[]).join(', ')}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={()=>startEdit(p)} className="px-3 py-1.5 rounded border">Edit</button>
@@ -83,9 +114,25 @@ export default function AdminBlog() {
       <div className="bg-white border rounded-lg p-4">
         <h2 className="font-semibold mb-2">{editing ? (editing==='new' ? 'Create Post' : 'Edit Post') : 'Select a post'}</h2>
         {editing && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="Title" className="w-full border rounded px-3 py-2" />
-            <input value={form.cover_image} onChange={e=>setForm({...form, cover_image:e.target.value})} placeholder="Cover Image URL" className="w-full border rounded px-3 py-2" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-medium">Cover image</label>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="file" accept="image/*" onChange={(e)=>{ const [file] = e.target.files || []; e.target.value=''; uploadCover(file) }} className="hidden" />
+                  <span className="px-3 py-1.5 rounded border bg-gray-50">{uploading ? 'Uploading...' : 'Upload'}</span>
+                </label>
+              </div>
+              {form.cover_image ? (
+                <div className="relative inline-block group">
+                  <img src={form.cover_image.startsWith('http') ? form.cover_image : `${API_BASE}${form.cover_image}`} className="w-40 h-24 object-cover rounded border" />
+                  <button type="button" onClick={()=>setForm(prev=>({...prev, cover_image:''}))} className="absolute top-1 right-1 text-xs bg-white/90 border rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100">Remove</button>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600">No image selected.</div>
+              )}
+            </div>
             <input value={form.excerpt} onChange={e=>setForm({...form, excerpt:e.target.value})} placeholder="Excerpt" className="w-full border rounded px-3 py-2" />
             <textarea value={form.content} onChange={e=>setForm({...form, content:e.target.value})} placeholder="Content (Markdown or HTML)" className="w-full border rounded px-3 py-2" rows={8} />
             <textarea value={(form.tags||[]).join('\n')} onChange={e=>setForm({...form, tags: e.target.value.split('\n').map(s=>s.trim()).filter(Boolean)})} placeholder="Tags (one per line)" className="w-full border rounded px-3 py-2" rows={3} />
