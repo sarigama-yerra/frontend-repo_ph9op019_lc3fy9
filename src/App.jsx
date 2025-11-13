@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import TrekCard from './components/TrekCard'
+import AdminLogin from './components/AdminLogin'
+import AdminLayout from './components/AdminLayout'
+import AdminRoute from './components/AdminRoute'
+import AdminDashboard from './components/AdminDashboard'
+import AdminTreks from './components/AdminTreks'
+import AdminBlog from './components/AdminBlog'
+import AdminInquiries from './components/AdminInquiries'
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || ''
 
@@ -187,7 +194,7 @@ function Contact() {
   )
 }
 
-function Layout({ children }) {
+function SiteLayout({ children }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white text-gray-900">
       <Navbar />
@@ -205,16 +212,20 @@ function Layout({ children }) {
 function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/treks" element={<Home />} />
-          <Route path="/treks/:id" element={<TrekDetail />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/" element={<SiteLayout><Home /></SiteLayout>} />
+        <Route path="/treks" element={<SiteLayout><Home /></SiteLayout>} />
+        <Route path="/treks/:id" element={<SiteLayout><TrekDetail /></SiteLayout>} />
+        <Route path="/blog" element={<SiteLayout><Blog /></SiteLayout>} />
+        <Route path="/about" element={<SiteLayout><About /></SiteLayout>} />
+        <Route path="/contact" element={<SiteLayout><Contact /></SiteLayout>} />
+
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminRoute><AdminLayout><AdminDashboard /></AdminLayout></AdminRoute>} />
+        <Route path="/admin/treks" element={<AdminRoute><AdminLayout><AdminTreks /></AdminLayout></AdminRoute>} />
+        <Route path="/admin/blog" element={<AdminRoute><AdminLayout><AdminBlog /></AdminLayout></AdminRoute>} />
+        <Route path="/admin/inquiries" element={<AdminRoute><AdminLayout><AdminInquiries /></AdminLayout></AdminRoute>} />
+      </Routes>
     </BrowserRouter>
   )
 }
